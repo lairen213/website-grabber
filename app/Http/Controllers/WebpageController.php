@@ -86,6 +86,8 @@ class WebpageController extends Controller
 
             file_put_contents($path . '/index.html', $webpage);
             return $page_name;
+        }else{
+            return view('alert', ['type' => 'error', 'page_name' => '']);
         }
     }
 
@@ -105,7 +107,7 @@ class WebpageController extends Controller
             $change_link = $request->get('change_link');
 
             $page_name = $this->downloadPage($change_link, $url);
-            return view('success', ['page_name' => $page_name]);
+            return view('alert', ['type' => 'success', 'page_name' => $page_name]);
         }
     }
 }
