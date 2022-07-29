@@ -99,9 +99,9 @@ class WebpageController extends Controller
                 }
             }
 
-            //Заменяем врнутренние ссылки на переданую пользователем ссылку
+            //Заменяем ссылки на переданую пользователем ссылку
             foreach ($webpage->find('a') as $link) {
-                if (!str_contains($link->href, 'http')) {
+                if (str_contains($link->href, 'http')) {
                     $link->href = $change_link;
                 }
             }
