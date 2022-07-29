@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use ZipArchive;
 use function PHPUnit\Framework\fileExists;
 
 include public_path() . '/simple_html_dom.php';
@@ -118,6 +120,25 @@ class WebpageController extends Controller
             $webpage->save();
 
             file_put_contents($path . '/index.html', $webpage);
+
+            //ARCHIVE TO ZIP AND DOWNLOAD
+            $zip = new ZipArchive();
+            $filename = "./pages/".$page_name.".zip";
+
+            if ($zip->open($filename, ZipArchive::CREATE)!==TRUE) {
+                echo "Cannot open ".$filename."<br>";
+            }else{
+                $dir = $path.'/';
+
+                // Create zip
+                $this->createZip($zip,$dir);
+                $zip->close();
+                //Download zip, and delete it on server
+                //Storage::deleteDirectory($path);
+                $this->downloadZip($filename);
+            }
+
+
             return $page_name;
         } else {
             return view('alert', ['type' => 'error', 'page_name' => '']);
@@ -173,6 +194,47 @@ class WebpageController extends Controller
         }
 
         return false;
+    }
+
+    public function downloadZip($zip_name){
+        if (file_exists($zip_name)) {
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="'.basename($zip_name).'"');
+            header('Content-Length: ' . filesize($zip_name));
+            header("Pragma: no-cache");
+            header("Expires: 0");
+
+            //flush();
+            readfile($zip_name);
+            // delete file
+            unlink($zip_name);
+        }
+    }
+
+    public function createZip($zip, $dir){
+        if (is_dir($dir) && $dh = opendir($dir)){
+            while (($file = readdir($dh)) !== false){
+                // If file
+                if (is_file($dir.$file)) {
+                    if($file != '' && $file != '.' && $file != '..'){
+                        $zip->addFile($dir.$file);
+                    }
+                }else{// If directory
+                    if(is_dir($dir.$file) ){
+                        if($file != '' && $file != '.' && $file != '..'){
+                            // Add empty directory
+                            $zip->addEmptyDir($dir.$file);
+
+                            $folder = $dir.$file.'/';
+
+                            // Read data of the folder
+                            $this->createZip($zip, $folder);
+                        }
+                    }
+                }
+            }
+            closedir($dh);
+        }
     }
 
     public function copyWebpage(Request $request)
