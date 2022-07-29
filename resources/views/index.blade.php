@@ -26,12 +26,12 @@
     <script>
         $('#btnDownloadPage').on('click', function (e) {
             e.preventDefault();
-            if (isUrlValid($('#inputLinkToSite').val()) && isUrlValid($('#changeLinkInput').val())) {
+            //if (isUrlValid($('#inputLinkToSite').val()) && isUrlValid($('#changeLinkInput').val())) {
                 $(this).attr('disabled', true);
                 $('#download_page_form').submit();
-            } else {
-                alert('Укажите верную ссылку в двух полях!');
-            }
+            // } else {
+            //     alert('Укажите верную ссылку в двух полях!');
+            // }
         })
 
         function isUrlValid(url) {
