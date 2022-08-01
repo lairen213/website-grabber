@@ -17,9 +17,15 @@ class WebpageController extends Controller
 {
     public function downloadPage($change_link, $url)
     {
+        $context = stream_context_create(array(
+            'http' => array(
+                'header' => array('User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201'),
+            ),
+        ));
+
         //Генерируем название страницы, и читаем нужную страницу
         $page_name = Str::random(20);
-        $webpage = file_get_html($url);
+        $webpage = file_get_html($url, 0, $context);
 
         if ($webpage && mkdir('./pages/' . $page_name, 0777, true)) {
             $path = './pages/' . $page_name;
@@ -38,8 +44,6 @@ class WebpageController extends Controller
 
                     $image_name = pathinfo($image_format)['basename'];
 
-                    //echo $image->src." ".str_replace(' ', '%20', $image->src)."<br>";
-
                     //Сохраняем локально изображение, и меняем путь к нему в верстке, на наш локальный
                     copy($image_format, $path . '/img/' . $image_name);
                     $image->src = './img/' . $image_name;
@@ -56,11 +60,11 @@ class WebpageController extends Controller
 
                     //Получаем полную ссылку на изображение
                     $image_format = $this->formatLink($url, $image_link, $base_elem);
-
+                    
                     $image_name = pathinfo($image_format)['basename'];
 
                     //Сохраняем локально изображение, и меняем путь к нему в верстке, на наш локальный
-                    copy($image_format, $path . '/img/' . $image_name);
+                    copy($image_format, $path . '/img/' . $image_name, $context);
                     $div->style = str_replace($image_link, './img/' . $image_name, $div->style);
                 }
             }
@@ -75,7 +79,7 @@ class WebpageController extends Controller
                     $style_name = pathinfo($style)['basename'];
 
                     //Сохраняем локально файл стилей, и меняем к нему путь в верстке, на наш локальный
-                    copy($style, $path . '/css/' . $style_name);
+                    copy($style, $path . '/css/' . $style_name, $context);
                     $stylesheet->href = './css/' . str_replace('?', '%3F', $style_name);
                 } catch (Exception $ex) {
                 }
@@ -90,7 +94,7 @@ class WebpageController extends Controller
                         $script_name = pathinfo($script_format)['basename'];
 
                         //Сохраняем локально файл скрипта, и меняем к нему путь в верстке, на наш локальный
-                        copy($script_format, $path . '/js/' . $script_name);
+                        copy($script_format, $path . '/js/' . $script_name, $context);
                         $script->src = './js/' . $script_name;
                     } elseif (!$script->src) {//Если не указан путь к скрипту (то есть скрипт написан на самой странице) и в нем есть метрики яндекса либо гугла - то удаляем скрипт
                         if (str_contains($script->innertext, 'google-analytics') || str_contains($script->innertext, 'metrika.yandex') || str_contains($script->innertext, 'yandex_metrika') || str_contains($script->innertext, 'mc.yandex.ru')) {
@@ -148,7 +152,11 @@ class WebpageController extends Controller
     //Получение ссылки на которой хранится файл
     public function formatLink($url, $link, $base = '')
     {
-        $url = pathinfo($url)['dirname'];
+        //Получаем корень ссылки - (https://www.some_site.com)
+        $url_check = pathinfo($url)['dirname'];
+        if($url_check != 'https:' && $url_check != 'http:'){
+            $url = $url_check;
+        }
 
         //Проверяем есть ли директива(если это сайт с трекера)
         if(isset($base->href)) {
@@ -157,26 +165,40 @@ class WebpageController extends Controller
             $base = '';
         }
 
-        //Если файл находится не на cdn, а на сервере, то добавляем к нему ссылку на страницу, чтобы был полный путь
-        if (!str_contains($link, 'http') && fileExists($url . "/" . $link)) {
-
-            if($link[0] == '/') {//Если файл находится в корне сайта
-                $parsed_url = parse_url($url);
-                $link_check = $parsed_url['scheme'].'://'.$parsed_url['host'].$link;
-            }else{
-                $link_check = $url . "/" . $link;
+        //Если файл находится на сервере
+        if(!str_contains($link, 'http')){
+            //Если указана полная ссылка на фото, но без https/http - (//check/img.jpg)
+            if($link[0] == '/' && $link[1] == '/'){
+                $link = 'https:'.$link;
+                if($this->checkFileExisting($link) === false){
+                    return str_replace('https', 'http', $link);
+                }
+                else{
+                    return $link;
+                }
             }
 
-            //Если такого файла по ссылке нету, но у нас есть директива - то скорей всего он будет там
-            if ($base && $this->checkFileExisting($link_check) === false) {
-                try {
-                    $base = pathinfo($base)['dirname'];
-                    $link = $url . $base . "/" . $link;
-                }catch (Exception $ex){
+            //Если файл находится на сервере, то добавляем к нему ссылку на страницу, чтобы был полный путь
+            if (fileExists($url . "/" . $link)) {
+
+                if($link[0] == '/') {//Если файл находится в корне сайта
+                    $parsed_url = parse_url($url);
+                    $link_check = $parsed_url['scheme'].'://'.$parsed_url['host'].$link;
+                }else{
+                    $link_check = $url . "/" . $link;
+                }
+
+                //Если такого файла по ссылке нету, но у нас есть директива - то скорей всего он будет там
+                if ($base && $this->checkFileExisting($link_check) === false) {
+                    try {
+                        $base = pathinfo($base)['dirname'];
+                        $link = $url . $base . "/" . $link;
+                    }catch (Exception $ex){
+                        $link = $link_check;
+                    }
+                }else{
                     $link = $link_check;
                 }
-            }else{
-                $link = $link_check;
             }
         }
 
